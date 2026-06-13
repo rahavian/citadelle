@@ -26,7 +26,7 @@ os.makedirs(PHOTOS_DIR, exist_ok=True)
 
 EXT = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif'}
 MAX_BYTES = 12 * 1024 * 1024
-SLOT_RE = re.compile(r'^slot-([a-z0-9-]+?)(?:-(a|b|plan))?$')
+SLOT_RE = re.compile(r'^slot-([a-z0-9-]+?)(?:-(a|b|plan|g[1-9]))?$')
 
 
 def valid_ids():

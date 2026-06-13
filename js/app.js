@@ -117,10 +117,13 @@
   const LS = { visited: 'citadel.visited', favs: 'citadel.favs' };
   const loadArr = (k) => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   const saveArr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  // Notes personnelles par lieu (persistées sur l'appareil — fonctionnent hors-ligne).
+  const getNote = (id) => { try { return localStorage.getItem('citadel.note.' + id) || ''; } catch (e) { return ''; } };
+  const setNote = (id, v) => { try { if (v && v.trim()) localStorage.setItem('citadel.note.' + id, v); else localStorage.removeItem('citadel.note.' + id); } catch (e) {} };
 
   const state = {
     screen: 'home', prevScreen: 'home', stopId: stops[0].id, tab: 'apercu',
-    selectedPin: null, more: false, visited: loadArr(LS.visited), favs: loadArr(LS.favs)
+    selectedPin: null, more: false, editingNote: false, lightbox: null, visited: loadArr(LS.visited), favs: loadArr(LS.favs)
   };
 
   /* ---------- Icônes (réutilisées de la maquette) ---------- */
@@ -257,14 +260,37 @@
     const tabDefs = [['apercu', 'Aperçu'], ['histoire', 'Histoire'], ['photos', 'Photos'], ['3dplan', '3D & Plan'], ['anec', 'Anecdotes']];
     const slot = 'slot-' + stop.id;
 
+    const note = getNote(stop.id);
+    const btnPrimary = 'flex:1;background:#FBF9F1;color:#0F3328;border:none;border-radius:10px;padding:11px;font-weight:800;font-size:12.5px;cursor:pointer;';
+    const btnGhost = 'flex:1;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:11px;font-weight:800;font-size:12.5px;cursor:pointer;';
+    const notesBlock = `<div style="margin:0 2px 20px;background:rgba(198,161,74,.08);border:1px solid rgba(198,161,74,.35);border-radius:14px;padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="display:flex;align-items:center;gap:7px;color:#C6A14A;font-size:10.5px;font-weight:800;letter-spacing:1px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C6A14A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>MES NOTES</div>
+        ${(!state.editingNote && note) ? '<button data-act="noteEdit" style="background:none;border:none;color:#C6A14A;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;">Modifier</button>' : ''}
+      </div>
+      ${state.editingNote
+        ? `<textarea id="note-input" placeholder="Ajoute tes notes pour la visite…" style="width:100%;margin-top:10px;min-height:90px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:10px;color:#fff;font-family:Mulish;font-size:14px;line-height:1.5;padding:10px;resize:vertical;box-sizing:border-box;">${esc(note)}</textarea>
+           <div style="display:flex;gap:8px;margin-top:10px;"><button data-act="noteSave" style="${btnPrimary}">Enregistrer</button><button data-act="noteCancel" style="${btnGhost}">Annuler</button></div>`
+        : note
+          ? `<p style="color:rgba(255,255,255,.9);font-size:14px;line-height:1.55;font-weight:500;margin:10px 0 0;white-space:pre-wrap;">${esc(note)}</p>`
+          : '<button data-act="noteEdit" style="margin-top:10px;width:100%;background:rgba(255,255,255,.06);border:1px dashed rgba(198,161,74,.5);color:#C6A14A;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;">＋ Ajouter une note</button>'}
+    </div>`;
+
     let body = '';
     if (state.tab === 'apercu') {
       body = `<div style="animation:fadeUp .3s ease;">
         <div style="position:relative;height:208px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);box-shadow:0 14px 34px rgba(0,0,0,.4);">
-          <image-slot id="${slot}"${slotSrcAttr(slot)} placeholder="Glisser une reconstitution" shape="rounded" radius="18"></image-slot>
+          <image-slot id="${slot}"${slotSrcAttr(slot)} lightbox placeholder="Glisser une reconstitution" shape="rounded" radius="18"></image-slot>
           <div style="position:absolute;left:12px;top:12px;background:rgba(15,51,40,.92);backdrop-filter:blur(4px);color:#C6A14A;font-size:10.5px;font-weight:800;letter-spacing:1px;padding:6px 11px;border-radius:8px;pointer-events:none;white-space:nowrap;">${esc(stop.era)}</div>
         </div>
-        <p style="color:rgba(255,255,255,.9);font-size:15px;line-height:1.6;font-weight:500;margin:18px 2px 20px;text-wrap:pretty;">${esc(stop.overview)}</p>
+        <div style="margin-top:11px;">
+          <div style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.5);font-size:10px;font-weight:800;letter-spacing:1px;margin-bottom:8px;">GALERIE<span style="font-weight:600;letter-spacing:0;opacity:.85;text-transform:none;">· touchez ＋ pour ajouter, une image pour l'agrandir</span></div>
+          <div data-scroll style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">
+            ${[1, 2, 3, 4, 5].map((n) => `<div style="position:relative;flex:0 0 74px;height:74px;border-radius:11px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);"><image-slot id="${slot}-g${n}"${slotSrcAttr(slot + '-g' + n)} lightbox placeholder="＋" shape="rounded" radius="11"></image-slot></div>`).join('')}
+          </div>
+        </div>
+        <p style="color:rgba(255,255,255,.9);font-size:15px;line-height:1.6;font-weight:500;margin:16px 2px 14px;text-wrap:pretty;">${esc(stop.overview)}</p>
+        ${notesBlock}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;">
           ${infoCard(I.cal, 'PÉRIODE', stop.period)}
           ${infoCard(I.user, 'BÂTISSEURS', stop.batisseurs)}
@@ -311,11 +337,11 @@
       body = `<div style="animation:fadeUp .3s ease;padding-top:4px;">
         <div style="color:rgba(255,255,255,.6);font-size:11px;font-weight:800;letter-spacing:1.4px;margin-bottom:12px;">COMPARAISON PASSÉ / PRÉSENT</div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);margin-bottom:11px;">
-          <image-slot id="${slot}-a"${slotSrcAttr(slot + '-a')} placeholder="Glisser une photo (passé)" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-a"${slotSrcAttr(slot + '-a')} lightbox placeholder="Glisser une photo (passé)" shape="rounded" radius="16"></image-slot>
           <div style="position:absolute;left:10px;top:10px;background:rgba(15,51,40,.9);color:#fff;font-size:10px;font-weight:800;letter-spacing:.6px;padding:5px 10px;border-radius:7px;pointer-events:none;">AUTREFOIS</div>
         </div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);">
-          <image-slot id="${slot}-b"${slotSrcAttr(slot + '-b')} placeholder="Glisser une photo (présent)" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-b"${slotSrcAttr(slot + '-b')} lightbox placeholder="Glisser une photo (présent)" shape="rounded" radius="16"></image-slot>
           <div style="position:absolute;left:10px;top:10px;background:rgba(198,161,74,.95);color:#241c08;font-size:10px;font-weight:800;letter-spacing:.6px;padding:5px 10px;border-radius:7px;pointer-events:none;">AUJOURD'HUI</div>
         </div>
         ${pistes}
@@ -329,7 +355,7 @@
         </div>
         <div style="color:rgba(255,255,255,.6);font-size:11px;font-weight:800;letter-spacing:1.4px;margin:20px 0 11px;">PLAN HISTORIQUE</div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:#13402f;">
-          <image-slot id="${slot}-plan"${slotSrcAttr(slot + '-plan')} placeholder="Glisser un plan / une gravure" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-plan"${slotSrcAttr(slot + '-plan')} lightbox placeholder="Glisser un plan / une gravure" shape="rounded" radius="16"></image-slot>
         </div>
       </div>`;
     } else { // anec
@@ -520,6 +546,22 @@
     requestAnimationFrame(() => { try { document.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = 0; }); } catch (e) {} });
   }
 
+  function lightboxHTML() {
+    const lb = state.lightbox;
+    if (!lb || !lb.list.length) return '';
+    const url = lb.list[lb.index];
+    const many = lb.list.length > 1;
+    const navBtn = 'position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;';
+    return `<div data-act="lightboxClose" style="position:absolute;inset:0;z-index:40;background:rgba(6,12,9,.95);display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;">
+      <img src="${esc(url)}" alt="" style="max-width:94%;max-height:82%;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);" />
+      <button data-act="lightboxClose" aria-label="Fermer" style="position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      ${many ? `<button data-act="lightboxPrev" style="${navBtn}left:10px;">‹</button><button data-act="lightboxNext" style="${navBtn}right:10px;">›</button>
+        <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:rgba(255,255,255,.7);font-size:12px;font-weight:700;">${lb.index + 1} / ${lb.list.length}</div>` : ''}
+    </div>`;
+  }
+  function renderOverlay() {
+    overlay.innerHTML = state.lightbox ? lightboxHTML() : state.more ? moreSheetHTML() : '';
+  }
   function render() {
     let html = '';
     switch (state.screen) {
@@ -532,7 +574,7 @@
       default: html = homeHTML();
     }
     view.innerHTML = html;
-    overlay.innerHTML = state.more ? moreSheetHTML() : '';
+    renderOverlay();
     const an = activeNav();
     document.querySelectorAll('.nav button').forEach((b) => b.classList.toggle('active', b.getAttribute('data-nav') === an));
   }
@@ -543,6 +585,8 @@
     state.screen = screen;
     state.more = false;
     state.selectedPin = null;
+    state.editingNote = false;
+    state.lightbox = null;
     render();
     scrollTop();
   }
@@ -554,6 +598,8 @@
     state.screen = 'detail';
     state.more = false;
     state.selectedPin = null;
+    state.editingNote = false;
+    state.lightbox = null;
     render();
     scrollTop();
   }
@@ -571,10 +617,16 @@
     more: () => { state.more = true; render(); },
     closeMore: () => { state.more = false; render(); },
     openPhotos: () => openStop((stops.find((s) => s.id === 'terra-nova') || stops[0]).id, 'photos'),
-    tab: (el) => { state.tab = el.getAttribute('data-tab'); render(); },
+    tab: (el) => { state.tab = el.getAttribute('data-tab'); state.editingNote = false; render(); },
     toggleFav: () => toggleFav(),
     selectPin: (el) => { const id = el.getAttribute('data-id'); state.selectedPin = state.selectedPin === id ? null : id; render(); },
-    openOnMap: () => { state.prevScreen = 'detail'; state.selectedPin = state.stopId; state.screen = 'map'; state.more = false; render(); scrollTop(); }
+    openOnMap: () => { state.prevScreen = 'detail'; state.selectedPin = state.stopId; state.screen = 'map'; state.more = false; render(); scrollTop(); },
+    noteEdit: () => { state.editingNote = true; render(); },
+    noteCancel: () => { state.editingNote = false; render(); },
+    noteSave: () => { const ta = document.getElementById('note-input'); if (ta) setNote(state.stopId, ta.value); state.editingNote = false; render(); },
+    lightboxClose: () => { state.lightbox = null; renderOverlay(); },
+    lightboxPrev: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index - 1 + lb.list.length) % lb.list.length; renderOverlay(); } },
+    lightboxNext: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index + 1) % lb.list.length; renderOverlay(); } }
   };
 
   document.querySelector('.app-phone').addEventListener('click', (e) => {
@@ -588,6 +640,16 @@
     if (fn) { e.preventDefault(); fn(el); }
   });
 
-  // Nav (déléguée aussi, mais les boutons ont data-act/data-screen)
+  // Ouverture plein écran d'une photo (événement émis par <image-slot lightbox>).
+  document.querySelector('.app-phone').addEventListener('imageslot:open', (e) => {
+    const slots = Array.from(view.querySelectorAll('image-slot[lightbox]')).filter((s) => s.hasAttribute('data-filled'));
+    const list = slots.map((s) => s.url).filter(Boolean);
+    if (!list.length) return;
+    let index = list.indexOf(e.detail && e.detail.url);
+    if (index < 0) index = 0;
+    state.lightbox = { list, index };
+    renderOverlay();
+  });
+
   render();
 })();

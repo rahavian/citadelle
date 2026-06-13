@@ -1,48 +1,85 @@
 /* <image-slot> — emplacement photo que l'utilisateur remplit (glisser-déposer ou clic).
  *
- * Deux modes, détectés automatiquement au chargement :
- *  • SERVEUR (serveur d'authoring server.py présent → /api/health répond) :
- *    l'image est envoyée à /api/upload, écrite comme VRAI fichier dans
- *    assets/photos/, et la correspondance vit dans data/uploads.json.
- *    → visible sur TOUS les appareils, persistant, commitable.
- *  • STATIQUE (simple fichier / http.server / hors-ligne) : repli en
- *    localStorage = aperçu local sur cet appareil uniquement.
+ * Persistance (par ordre de priorité d'affichage) :
+ *  • SERVEUR d'authoring (server.py, /api) → /api/upload écrit un VRAI fichier
+ *    dans assets/photos/ (+ data/uploads.json). Visible sur tous les appareils.
+ *  • Sinon (app statique / hors-ligne) → IndexedDB sur l'appareil : robuste,
+ *    gros quota, survit aux rechargements (bien mieux que localStorage sur iOS).
+ *  • Fichier déclaré dans content.json (attribut src) en repli de base.
  *
- * Les fichiers déjà déclarés (content.json lieu.images, exposés via l'attribut
- * src) et les uploads (data/uploads.json) s'affichent partout sans dépôt.
+ * Attribut `lightbox` : si présent, un clic sur l'image remplie demande
+ * l'ouverture en plein écran (événement 'imageslot:open').
  *
- * Attributs : id (clé du slot, requis) · placeholder · shape · radius · fit · src
+ * Attributs : id (clé, requis) · placeholder · shape · radius · fit · src · lightbox
  */
 (() => {
   if (customElements.get('image-slot')) return;
 
   const PREFIX = 'imgslot:';
-  const MAX_DIM = 1400;
+  const MAX_DIM = 1600;
   const ACCEPT = ['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif'];
 
-  // ── État partagé (mode serveur + mapping uploads) ───────────────────────
-  let SERVER = false;       // serveur d'upload détecté ?
-  let UPLOADS = {};         // { slotId: "assets/photos/....?v=..." }
-  const subs = new Set();   // slots abonnés (re-render sur changement de mapping)
+  // ── État partagé ────────────────────────────────────────────────────────
+  let SERVER = false;       // serveur d'authoring détecté ?
+  let UPLOADS = {};         // { slotId: "assets/photos/...?v=..." } (serveur/commité)
+  const subs = new Set();
   const notifyAll = () => subs.forEach((fn) => { try { fn(); } catch (e) {} });
 
+  // ── IndexedDB (stockage local robuste des dépôts) ───────────────────────
+  const DB_NAME = 'citadelle', STORE = 'slots';
+  let IDB = null;
+  const CACHE = {};         // { slotId: dataURL } — miroir synchrone de l'IDB
+  function idbOpen() {
+    return new Promise((res) => {
+      if (typeof indexedDB === 'undefined') return res(null);
+      let req;
+      try { req = indexedDB.open(DB_NAME, 1); } catch (e) { return res(null); }
+      req.onupgradeneeded = () => { try { req.result.createObjectStore(STORE); } catch (e) {} };
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => res(null);
+    });
+  }
+  async function idbLoadAll() {
+    IDB = await idbOpen();
+    if (!IDB) return;
+    try {
+      const st = IDB.transaction(STORE, 'readonly').objectStore(STORE);
+      const req = st.openCursor();
+      await new Promise((res) => {
+        req.onsuccess = (e) => { const c = e.target.result; if (c) { CACHE[c.key] = c.value; c.continue(); } else res(); };
+        req.onerror = () => res();
+      });
+    } catch (e) {}
+    notifyAll();
+  }
+  function idbPut(id, val) { if (IDB) try { IDB.transaction(STORE, 'readwrite').objectStore(STORE).put(val, id); } catch (e) {} }
+  function idbDel(id) { if (IDB) try { IDB.transaction(STORE, 'readwrite').objectStore(STORE).delete(id); } catch (e) {} }
+
+  function readLocal(id) {
+    if (!id) return null;
+    if (id in CACHE) return CACHE[id];
+    try { return localStorage.getItem(PREFIX + id) || null; } catch (e) { return null; } // legacy
+  }
+  function writeLocal(id, url) {
+    if (!id) return;
+    if (url) { CACHE[id] = url; idbPut(id, url); }
+    else { delete CACHE[id]; idbDel(id); try { localStorage.removeItem(PREFIX + id); } catch (e) {} }
+  }
+
   async function initShared() {
-    if (typeof fetch !== 'function') return; // hors navigateur (tests) : repli local
-    // 1) serveur d'authoring ?
-    try {
-      const r = await fetch('api/uploads', { cache: 'no-store' });
-      if (r.ok) { SERVER = true; UPLOADS = (await r.json()) || {}; notifyAll(); return; }
-    } catch (e) {}
-    // 2) sinon, mapping commité (uploads déjà figés dans le dépôt) — lecture seule
-    try {
-      const r = await fetch('data/uploads.json', { cache: 'no-store' });
-      if (r.ok) { UPLOADS = (await r.json()) || {}; notifyAll(); }
-    } catch (e) {}
+    if (typeof fetch === 'function') {
+      try {
+        const r = await fetch('api/uploads', { cache: 'no-store' });
+        if (r.ok) { SERVER = true; UPLOADS = (await r.json()) || {}; }
+      } catch (e) {}
+      if (!SERVER) {
+        try { const r = await fetch('data/uploads.json', { cache: 'no-store' }); if (r.ok) UPLOADS = (await r.json()) || {}; } catch (e) {}
+      }
+      notifyAll();
+    }
+    if (!SERVER) await idbLoadAll();   // dépôts locaux seulement hors serveur
   }
   initShared();
-
-  function readLocal(id) { if (!id) return null; try { return localStorage.getItem(PREFIX + id) || null; } catch (e) { return null; } }
-  function writeLocal(id, url) { if (!id) return; try { if (url) localStorage.setItem(PREFIX + id, url); else localStorage.removeItem(PREFIX + id); } catch (e) {} }
 
   async function toDataUrl(file, targetW) {
     const bitmap = await createImageBitmap(file);
@@ -55,7 +92,7 @@
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
       let out = canvas.toDataURL('image/webp', 0.85);
-      if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/jpeg', 0.85);
+      if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/jpeg', 0.85); // Safari : pas de webp
       return out;
     } finally { bitmap.close && bitmap.close(); }
   }
@@ -71,8 +108,9 @@
     '  font:12px/1.3 Mulish,system-ui,-apple-system,sans-serif;color:rgba(255,255,255,.78)}' +
     '.frame{position:absolute;inset:0;overflow:hidden;background:rgba(255,255,255,.05)}' +
     '.frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;-webkit-user-drag:none;user-select:none}' +
+    ':host([lightbox][data-filled]) .frame img{cursor:zoom-in}' +
     '.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;' +
-    '  justify-content:center;gap:6px;text-align:center;padding:10px;box-sizing:border-box;cursor:pointer;user-select:none}' +
+    '  justify-content:center;gap:6px;text-align:center;padding:8px;box-sizing:border-box;cursor:pointer;user-select:none}' +
     '.empty svg{opacity:.55}' +
     '.cap{max-width:92%;font-weight:600;letter-spacing:.01em;opacity:.85}' +
     '.sub{font-size:10.5px;opacity:.7}' +
@@ -83,16 +121,16 @@
     ':host([data-over]) .ring{border-color:#C6A14A}' +
     ':host([data-over]) .frame{outline:2px solid #C6A14A;outline-offset:-2px;background:rgba(198,161,74,.12)}' +
     ':host([data-filled]) .ring{display:none}' +
-    '.ctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .12s}' +
+    '.ctl{position:absolute;right:6px;bottom:6px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .12s}' +
     ':host([data-filled]:hover) .ctl{opacity:1;pointer-events:auto}' +
     '.ctl button{appearance:none;border:0;border-radius:7px;padding:5px 9px;cursor:pointer;' +
     '  background:rgba(8,18,13,.72);color:#fff;font:11px/1 Mulish,system-ui,sans-serif;backdrop-filter:blur(6px)}' +
     '.ctl button:hover{background:rgba(8,18,13,.9)}' +
-    '.err{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;background:#B23B2D;' +
+    '.err{position:absolute;left:6px;right:6px;bottom:6px;color:#fff;background:#B23B2D;' +
     '  font-size:11px;padding:5px 8px;border-radius:6px;pointer-events:none}';
 
   class ImageSlot extends HTMLElement {
-    static get observedAttributes() { return ['placeholder', 'shape', 'radius', 'fit', 'src', 'id']; }
+    static get observedAttributes() { return ['placeholder', 'shape', 'radius', 'fit', 'src', 'id', 'lightbox']; }
 
     constructor() {
       super();
@@ -113,9 +151,16 @@
       this._err = null;
       this._depth = 0;
       this._gen = 0;
+      this._url = '';
       this._subFn = () => this._render();
 
       this._empty.addEventListener('click', () => this._input.click());
+      this._img.addEventListener('click', (e) => {
+        if (this.hasAttribute('lightbox') && this.hasAttribute('data-filled')) {
+          e.stopPropagation();
+          this.dispatchEvent(new CustomEvent('imageslot:open', { detail: { url: this._url, id: this.id }, bubbles: true, composed: true }));
+        }
+      });
       root.addEventListener('click', (e) => {
         const act = e.target.getAttribute && e.target.getAttribute('data-act');
         if (act === 'replace') this._input.click();
@@ -138,6 +183,8 @@
       subs.delete(this._subFn);
     }
     attributeChangedCallback() { if (this.shadowRoot) this._render(); }
+
+    get url() { return this._url || ''; }
 
     handleEvent(e) {
       if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -175,10 +222,10 @@
           if (gen !== this._gen) return;
           const j = await r.json().catch(() => ({}));
           if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-          UPLOADS[this.id] = j.url;     // → vrai fichier, visible partout
+          UPLOADS[this.id] = j.url;
           notifyAll();
         } else {
-          writeLocal(this.id, url);     // repli aperçu local
+          writeLocal(this.id, url);   // IndexedDB : persistant sur l'appareil
           this._render();
         }
       } catch (err) {
@@ -193,7 +240,7 @@
       if (SERVER && this.id && UPLOADS[this.id]) {
         fetch('api/delete', { method: 'POST', headers: { 'X-Slot-Id': this.id } })
           .then(() => { delete UPLOADS[this.id]; notifyAll(); })
-          .catch(() => { this._setError('Suppression impossible.'); });
+          .catch(() => this._setError('Suppression impossible.'));
       } else {
         writeLocal(this.id, null);
         this._render();
@@ -221,10 +268,10 @@
       this._ring.style.borderRadius = radius;
       this._img.style.objectFit = this.getAttribute('fit') || 'cover';
 
-      // Priorité : upload (fichier réel, partout) > aperçu local (mode statique) > src (content.json).
       const uploaded = this.id ? UPLOADS[this.id] : null;
       const stored = SERVER ? null : readLocal(this.id);
       const url = uploaded || stored || this.getAttribute('src') || '';
+      this._url = url;
       this._cap.textContent = this.getAttribute('placeholder') || 'Glisser une photo';
       if (url) {
         if (this._img.getAttribute('src') !== url) this._img.src = url;
