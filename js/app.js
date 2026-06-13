@@ -32,6 +32,19 @@
     const m = (lieu.infos_cles || []).find((i) => re.test(i.label));
     return m ? m.valeur : (fallback || '—');
   };
+  const lieuById = (id) => C.lieux.find((x) => x.id === id);
+  // Image « durable » d'un slot : fichier déclaré dans content.json (lieu.images),
+  // servi à TOUS les appareils. Le glisser-déposer (localStorage) la surcharge
+  // localement. slotId : slot-<id> | slot-<id>-a | slot-<id>-b | slot-<id>-plan.
+  function slotSrcAttr(slotId) {
+    const m = /^slot-(.+?)(?:-(a|b|plan))?$/.exec(slotId);
+    if (!m) return '';
+    const l = lieuById(m[1]);
+    if (!l || !l.images) return '';
+    const key = m[2] === 'a' ? 'avant' : m[2] === 'b' ? 'apres' : m[2] === 'plan' ? 'plan' : 'principale';
+    const v = l.images[key];
+    return v ? ` src="${esc(v)}"` : '';
+  }
 
   /* ---------- Métadonnées de présentation (couche UI, pas du contenu) ----------
      era = libellé court d'époque pour les badges ; mapLabel = nom court sur la carte ;
@@ -217,7 +230,7 @@
             </div>
             <button ${ev.stopId ? `data-act="openStop" data-id="${esc(ev.stopId)}"` : 'disabled'} style="flex:1;text-align:left;display:flex;gap:13px;background:${ev.highlight ? '#FBF9F1' : '#FBF8EF'};border:${ev.highlight ? '2px solid #0F3328' : '1px solid rgba(0,0,0,.04)'};border-radius:15px;padding:11px;cursor:${ev.stopId ? 'pointer' : 'default'};box-shadow:0 6px 16px rgba(40,40,20,.10);">
               <div style="position:relative;flex:0 0 86px;height:86px;border-radius:11px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);">
-                ${ev.stopId ? `<image-slot id="slot-${esc(ev.stopId)}" placeholder="Photo" shape="rounded" radius="11"></image-slot>` : ''}
+                ${ev.stopId ? `<image-slot id="slot-${esc(ev.stopId)}"${slotSrcAttr('slot-' + ev.stopId)} placeholder="Photo" shape="rounded" radius="11"></image-slot>` : ''}
                 <div style="position:absolute;left:6px;bottom:6px;background:rgba(15,51,40,.9);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:3px 7px;border-radius:6px;pointer-events:none;">${esc(ev.date)}</div>
               </div>
               <div style="flex:1;min-width:0;padding-top:2px;">
@@ -248,7 +261,7 @@
     if (state.tab === 'apercu') {
       body = `<div style="animation:fadeUp .3s ease;">
         <div style="position:relative;height:208px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);box-shadow:0 14px 34px rgba(0,0,0,.4);">
-          <image-slot id="${slot}" placeholder="Glisser une reconstitution" shape="rounded" radius="18"></image-slot>
+          <image-slot id="${slot}"${slotSrcAttr(slot)} placeholder="Glisser une reconstitution" shape="rounded" radius="18"></image-slot>
           <div style="position:absolute;left:12px;top:12px;background:rgba(15,51,40,.92);backdrop-filter:blur(4px);color:#C6A14A;font-size:10.5px;font-weight:800;letter-spacing:1px;padding:6px 11px;border-radius:8px;pointer-events:none;white-space:nowrap;">${esc(stop.era)}</div>
         </div>
         <p style="color:rgba(255,255,255,.9);font-size:15px;line-height:1.6;font-weight:500;margin:18px 2px 20px;text-wrap:pretty;">${esc(stop.overview)}</p>
@@ -298,11 +311,11 @@
       body = `<div style="animation:fadeUp .3s ease;padding-top:4px;">
         <div style="color:rgba(255,255,255,.6);font-size:11px;font-weight:800;letter-spacing:1.4px;margin-bottom:12px;">COMPARAISON PASSÉ / PRÉSENT</div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);margin-bottom:11px;">
-          <image-slot id="${slot}-a" placeholder="Glisser une photo (passé)" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-a"${slotSrcAttr(slot + '-a')} placeholder="Glisser une photo (passé)" shape="rounded" radius="16"></image-slot>
           <div style="position:absolute;left:10px;top:10px;background:rgba(15,51,40,.9);color:#fff;font-size:10px;font-weight:800;letter-spacing:.6px;padding:5px 10px;border-radius:7px;pointer-events:none;">AUTREFOIS</div>
         </div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);">
-          <image-slot id="${slot}-b" placeholder="Glisser une photo (présent)" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-b"${slotSrcAttr(slot + '-b')} placeholder="Glisser une photo (présent)" shape="rounded" radius="16"></image-slot>
           <div style="position:absolute;left:10px;top:10px;background:rgba(198,161,74,.95);color:#241c08;font-size:10px;font-weight:800;letter-spacing:.6px;padding:5px 10px;border-radius:7px;pointer-events:none;">AUJOURD'HUI</div>
         </div>
         ${pistes}
@@ -316,7 +329,7 @@
         </div>
         <div style="color:rgba(255,255,255,.6);font-size:11px;font-weight:800;letter-spacing:1.4px;margin:20px 0 11px;">PLAN HISTORIQUE</div>
         <div style="position:relative;height:200px;border-radius:16px;overflow:hidden;background:#13402f;">
-          <image-slot id="${slot}-plan" placeholder="Glisser un plan / une gravure" shape="rounded" radius="16"></image-slot>
+          <image-slot id="${slot}-plan"${slotSrcAttr(slot + '-plan')} placeholder="Glisser un plan / une gravure" shape="rounded" radius="16"></image-slot>
         </div>
       </div>`;
     } else { // anec
@@ -397,7 +410,7 @@
         </div>
         <div style="position:absolute;right:14px;bottom:18px;width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B23B2D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
         ${sel ? `<button data-act="openStop" data-id="${esc(sel.id)}" style="position:absolute;left:14px;right:14px;bottom:80px;display:flex;align-items:center;gap:13px;text-align:left;background:#FBF9F1;border:none;border-radius:16px;padding:13px;cursor:pointer;box-shadow:0 14px 34px rgba(0,0,0,.35);animation:fadeUp .25s ease;">
-          <div style="position:relative;flex:0 0 64px;height:64px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);"><image-slot id="slot-${esc(sel.id)}" placeholder="" shape="rounded" radius="12"></image-slot></div>
+          <div style="position:relative;flex:0 0 64px;height:64px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);"><image-slot id="slot-${esc(sel.id)}"${slotSrcAttr('slot-' + sel.id)} placeholder="" shape="rounded" radius="12"></image-slot></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#B23B2D;">${esc(sel.era)}</div>
             <div style="font-family:var(--serif);font-weight:700;font-size:17px;color:#20291F;line-height:1.05;margin-top:2px;">${esc(sel.mapLabel)}</div>
@@ -444,7 +457,7 @@
               <div style="${numStyle}">${done ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 9-10"/></svg>' : `<span>${esc(st.num)}</span>`}</div>
             </div>
             <button data-act="openStop" data-id="${esc(st.id)}" style="flex:1;text-align:left;display:flex;gap:12px;align-items:center;background:${current ? '#FBF9F1' : '#FBF8EF'};border:${current ? '2px solid #B23B2D' : '1px solid rgba(0,0,0,.04)'};border-radius:15px;padding:10px;cursor:pointer;box-shadow:0 5px 14px rgba(40,40,20,.08);">
-              <div style="position:relative;flex:0 0 62px;height:62px;border-radius:11px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);"><image-slot id="slot-${esc(st.id)}" placeholder="" shape="rounded" radius="11"></image-slot></div>
+              <div style="position:relative;flex:0 0 62px;height:62px;border-radius:11px;overflow:hidden;background:linear-gradient(135deg,#2c4a38,#15402f);"><image-slot id="slot-${esc(st.id)}"${slotSrcAttr('slot-' + st.id)} placeholder="" shape="rounded" radius="11"></image-slot></div>
               <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:7px;">
                   <span style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#0F3328;background:rgba(15,51,40,.09);padding:2px 7px;border-radius:6px;">${esc(st.era)}</span>

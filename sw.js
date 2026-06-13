@@ -3,7 +3,7 @@
  * fonctionnement hors-ligne (PRD §12). Les médias déposés par l'utilisateur
  * vivent en localStorage, hors du cache ; les futures photos réseau seront
  * servies réseau-d'abord avec repli au cache. */
-const CACHE = 'citadelle-v1';
+const CACHE = 'citadelle-v3';
 const SHELL = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const SHELL = [
   './js/app.js',
   './js/image-slot.js',
   './data/content.js',
+  './data/uploads.json',
   './manifest.webmanifest',
   './assets/hero-caricature.png',
   './icons/icon.svg',
@@ -36,6 +37,19 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // API d'authoring : jamais interceptée ni mise en cache (écritures, mapping live).
+  if (url.origin === location.origin && url.pathname.includes('/api/')) return;
+
+  // Mapping des uploads : réseau-d'abord (toujours frais), repli cache hors-ligne.
+  if (url.origin === location.origin && url.pathname.endsWith('/data/uploads.json')) {
+    e.respondWith(fetch(req).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+      return res;
+    }).catch(() => caches.match(req)));
+    return;
+  }
 
   // Polices Google : réseau-d'abord, repli cache (best effort, hors-ligne = repli système).
   if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {

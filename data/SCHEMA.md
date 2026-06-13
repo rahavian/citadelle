@@ -25,7 +25,8 @@ Un arrêt physique du parcours guidé, un point cliquable sur la carte.
 | `infos_cles[]` | `{label, valeur}` | 3–4 puces : Période · Acteur/architecte · Fonction · État actuel. |
 | `anecdotes[]` | string | 3–5 anecdotes. |
 | `sections[]` | `{titre, texte}` | Sous-sections internes (ex. Esplanade : Stade → Théâtre ; Terra Nova : Vauban 1692). Vide si non pertinent. |
-| `photos[]` | `{url, credit, licence}` | **Vide en V1.** À remplir progressivement (§11) avec crédit + licence vérifiée. |
+| `photos[]` | `{url, credit, licence}` | Galerie (réservé) : à remplir progressivement (§11) avec crédit + licence vérifiée. |
+| `images` | `{principale, avant, apres, plan}` | **Chemins de fichiers** affichés dans les emplacements de l'app, servis à **tous les appareils** (vide = emplacement à remplir). `principale` → fiche + vignettes timeline/parcours/carte ; `avant`/`apres` → onglet Photos ; `plan` → onglet 3D & Plan. Ex. `"assets/photos/terra-nova.jpg"`. |
 | `pistes_photos[]` | `{sujet, source_suggeree}` | Indications de visuels libres à sourcer plus tard. Aucune URL/licence inventée. |
 | `periodes_liees[]` | string | `id` de périodes de la Timeline. |
 | `position` | `{x, y, lat, lng}` | **`null` en V1** : `x/y` dépend de l'asset carte (design) ; `lat/lng` réservé au futur GPS. |

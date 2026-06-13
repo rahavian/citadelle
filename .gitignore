@@ -9,5 +9,12 @@
 .vscode/
 .idea/
 
+# Python (serveur d'authoring)
+__pycache__/
+*.pyc
+
+# Config locale Claude Code
+.claude/
+
 # Dépendances éventuelles (le projet n'en a pas en V1)
 node_modules/

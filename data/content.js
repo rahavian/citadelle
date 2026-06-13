@@ -50,6 +50,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "La loge royale du Stade des Jeux avec la devise Ludus pro Patria et les allégories de la Sambre et de la Meuse",
@@ -172,6 +178,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue aérienne du confluent de la Sambre et de la Meuse avec le Grognon et la pointe de l'éperon",
@@ -277,6 +289,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue de la Tour aux Chartes et de la Tour au Four, vestiges médiévaux de la Citadelle",
@@ -377,6 +395,12 @@ window.CITADELLE_CONTENT = {
       ],
       "sections": [],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue d'ensemble des bastions et de la courtine de la Médiane",
@@ -481,6 +505,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue aérienne ou plan montrant la trace en étoile (bastions et ouvrage à cornes) de la Terra Nova",
@@ -587,6 +617,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue actuelle du vallon de la Foliette inséré entre Terra Nova et le Fort d'Orange",
@@ -691,6 +727,12 @@ window.CITADELLE_CONTENT = {
       ],
       "sections": [],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue d'une galerie souterraine voûtée éclairée de la Citadelle de Namur",
@@ -791,6 +833,12 @@ window.CITADELLE_CONTENT = {
       ],
       "sections": [],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue rapprochée des remparts en brique rouge hollandaise, montrant l'appareillage de briques",
@@ -905,6 +953,12 @@ window.CITADELLE_CONTENT = {
         }
       ],
       "photos": [],
+      "images": {
+        "principale": "",
+        "avant": "",
+        "apres": "",
+        "plan": ""
+      },
       "pistes_photos": [
         {
           "sujet": "Vue aérienne de la Citadelle dominant le confluent de la Sambre et de la Meuse",

@@ -1,18 +1,17 @@
 /* <image-slot> — emplacement photo que l'utilisateur remplit (glisser-déposer ou clic).
  *
- * Recréé pour Citadel Guide Namur à partir du composant de Claude Design.
- * Différence clé : ici la persistance se fait en localStorage (clé "imgslot:<id>"),
- * pour que les photos déposées survivent aux rechargements directement sur le
- * téléphone — sans backend, hors-ligne. L'image est redimensionnée (côté max
- * MAX_DIM) et ré-encodée en WebP/JPEG avant stockage, pour rester légère.
+ * Deux modes, détectés automatiquement au chargement :
+ *  • SERVEUR (serveur d'authoring server.py présent → /api/health répond) :
+ *    l'image est envoyée à /api/upload, écrite comme VRAI fichier dans
+ *    assets/photos/, et la correspondance vit dans data/uploads.json.
+ *    → visible sur TOUS les appareils, persistant, commitable.
+ *  • STATIQUE (simple fichier / http.server / hors-ligne) : repli en
+ *    localStorage = aperçu local sur cet appareil uniquement.
  *
- * Attributs :
- *   id           clé de persistance (requise pour survivre au rechargement)
- *   placeholder  légende de l'état vide
- *   shape        'rounded' (défaut) | 'rect' | 'circle' | 'pill'
- *   radius       rayon des coins en px pour 'rounded' (défaut 12)
- *   fit          object-fit : cover (défaut) | contain | fill
- *   src          image de repli initiale (un dépôt utilisateur la remplace)
+ * Les fichiers déjà déclarés (content.json lieu.images, exposés via l'attribut
+ * src) et les uploads (data/uploads.json) s'affichent partout sans dépôt.
+ *
+ * Attributs : id (clé du slot, requis) · placeholder · shape · radius · fit · src
  */
 (() => {
   if (customElements.get('image-slot')) return;
@@ -21,20 +20,31 @@
   const MAX_DIM = 1400;
   const ACCEPT = ['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif'];
 
-  function read(id) {
-    if (!id) return null;
-    try { return localStorage.getItem(PREFIX + id) || null; } catch (e) { return null; }
-  }
-  function write(id, url) {
-    if (!id) return;
+  // ── État partagé (mode serveur + mapping uploads) ───────────────────────
+  let SERVER = false;       // serveur d'upload détecté ?
+  let UPLOADS = {};         // { slotId: "assets/photos/....?v=..." }
+  const subs = new Set();   // slots abonnés (re-render sur changement de mapping)
+  const notifyAll = () => subs.forEach((fn) => { try { fn(); } catch (e) {} });
+
+  async function initShared() {
+    if (typeof fetch !== 'function') return; // hors navigateur (tests) : repli local
+    // 1) serveur d'authoring ?
     try {
-      if (url) localStorage.setItem(PREFIX + id, url);
-      else localStorage.removeItem(PREFIX + id);
-    } catch (e) { /* quota / mode privé : on garde au moins la session */ }
+      const r = await fetch('api/uploads', { cache: 'no-store' });
+      if (r.ok) { SERVER = true; UPLOADS = (await r.json()) || {}; notifyAll(); return; }
+    } catch (e) {}
+    // 2) sinon, mapping commité (uploads déjà figés dans le dépôt) — lecture seule
+    try {
+      const r = await fetch('data/uploads.json', { cache: 'no-store' });
+      if (r.ok) { UPLOADS = (await r.json()) || {}; notifyAll(); }
+    } catch (e) {}
   }
+  initShared();
+
+  function readLocal(id) { if (!id) return null; try { return localStorage.getItem(PREFIX + id) || null; } catch (e) { return null; } }
+  function writeLocal(id, url) { if (!id) return; try { if (url) localStorage.setItem(PREFIX + id, url); else localStorage.removeItem(PREFIX + id); } catch (e) {} }
 
   async function toDataUrl(file, targetW) {
-    // Encodage via canvas : on stocke des octets redimensionnés, pas le brut.
     const bitmap = await createImageBitmap(file);
     try {
       const cap = Math.min(MAX_DIM, Math.max(1, Math.round((targetW || MAX_DIM) * 2)));
@@ -44,7 +54,6 @@
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-      // WebP si supporté (plus léger), sinon JPEG.
       let out = canvas.toDataURL('image/webp', 0.85);
       if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/jpeg', 0.85);
       return out;
@@ -69,6 +78,7 @@
     '.sub{font-size:10.5px;opacity:.7}' +
     '.sub u{text-underline-offset:2px}' +
     '.empty:hover .sub{opacity:1}' +
+    '.busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,18,13,.55);color:#fff;font-weight:700;font-size:11px}' +
     '.ring{position:absolute;inset:0;pointer-events:none;border:1.5px dashed rgba(255,255,255,.32);transition:border-color .12s}' +
     ':host([data-over]) .ring{border-color:#C6A14A}' +
     ':host([data-over]) .frame{outline:2px solid #C6A14A;outline-offset:-2px;background:rgba(198,161,74,.12)}' +
@@ -103,12 +113,13 @@
       this._err = null;
       this._depth = 0;
       this._gen = 0;
+      this._subFn = () => this._render();
 
       this._empty.addEventListener('click', () => this._input.click());
       root.addEventListener('click', (e) => {
         const act = e.target.getAttribute && e.target.getAttribute('data-act');
         if (act === 'replace') this._input.click();
-        if (act === 'clear') { this._gen++; write(this.id, null); this._render(); }
+        if (act === 'clear') this._clear();
       });
       this._input.addEventListener('change', () => {
         const f = this._input.files && this._input.files[0];
@@ -119,10 +130,12 @@
 
     connectedCallback() {
       ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((t) => this.addEventListener(t, this));
+      subs.add(this._subFn);
       this._render();
     }
     disconnectedCallback() {
       ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((t) => this.removeEventListener(t, this));
+      subs.delete(this._subFn);
     }
     attributeChangedCallback() { if (this.shadowRoot) this._render(); }
 
@@ -142,6 +155,12 @@
       }
     }
 
+    _busy(on) {
+      let b = this.shadowRoot.querySelector('.busy');
+      if (on && !b) { b = document.createElement('div'); b.className = 'busy'; b.textContent = 'Envoi…'; this._frame.appendChild(b); }
+      if (!on && b) b.remove();
+    }
+
     async _ingest(file) {
       this._setError(null);
       if (!file || ACCEPT.indexOf(file.type) < 0) { this._setError('Image PNG, JPEG, WebP ou GIF.'); return; }
@@ -149,11 +168,35 @@
       try {
         const url = await toDataUrl(file, this.clientWidth || this.offsetWidth);
         if (gen !== this._gen) return;
-        write(this.id, url);
-        this._render();
+        if (SERVER && this.id) {
+          this._busy(true);
+          const r = await fetch('api/upload', { method: 'POST', headers: { 'X-Slot-Id': this.id, 'Content-Type': 'text/plain' }, body: url });
+          this._busy(false);
+          if (gen !== this._gen) return;
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+          UPLOADS[this.id] = j.url;     // → vrai fichier, visible partout
+          notifyAll();
+        } else {
+          writeLocal(this.id, url);     // repli aperçu local
+          this._render();
+        }
       } catch (err) {
+        this._busy(false);
         if (gen !== this._gen) return;
-        this._setError('Lecture de l’image impossible.');
+        this._setError('Échec : ' + (err && err.message ? err.message : 'envoi impossible'));
+      }
+    }
+
+    _clear() {
+      this._gen++;
+      if (SERVER && this.id && UPLOADS[this.id]) {
+        fetch('api/delete', { method: 'POST', headers: { 'X-Slot-Id': this.id } })
+          .then(() => { delete UPLOADS[this.id]; notifyAll(); })
+          .catch(() => { this._setError('Suppression impossible.'); });
+      } else {
+        writeLocal(this.id, null);
+        this._render();
       }
     }
 
@@ -164,7 +207,7 @@
       d.className = 'err'; d.textContent = msg;
       this.shadowRoot.appendChild(d);
       this._err = d;
-      setTimeout(() => { if (this._err === d) { d.remove(); this._err = null; } }, 3000);
+      setTimeout(() => { if (this._err === d) { d.remove(); this._err = null; } }, 3500);
     }
 
     _render() {
@@ -178,8 +221,10 @@
       this._ring.style.borderRadius = radius;
       this._img.style.objectFit = this.getAttribute('fit') || 'cover';
 
-      const stored = read(this.id);
-      const url = stored || this.getAttribute('src') || '';
+      // Priorité : upload (fichier réel, partout) > aperçu local (mode statique) > src (content.json).
+      const uploaded = this.id ? UPLOADS[this.id] : null;
+      const stored = SERVER ? null : readLocal(this.id);
+      const url = uploaded || stored || this.getAttribute('src') || '';
       this._cap.textContent = this.getAttribute('placeholder') || 'Glisser une photo';
       if (url) {
         if (this._img.getAttribute('src') !== url) this._img.src = url;
