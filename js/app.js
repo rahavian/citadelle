@@ -549,14 +549,20 @@
   function lightboxHTML() {
     const lb = state.lightbox;
     if (!lb || !lb.list.length) return '';
-    const url = lb.list[lb.index];
+    const item = lb.list[lb.index];
     const many = lb.list.length > 1;
-    const navBtn = 'position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;';
+    const navBtn = 'position:absolute;top:46%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;';
     return `<div data-act="lightboxClose" style="position:absolute;inset:0;z-index:40;background:rgba(6,12,9,.95);display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;">
-      <img src="${esc(url)}" alt="" style="max-width:94%;max-height:82%;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);" />
+      <img src="${esc(item.url)}" alt="" style="max-width:94%;max-height:72%;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);" />
       <button data-act="lightboxClose" aria-label="Fermer" style="position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-      ${many ? `<button data-act="lightboxPrev" style="${navBtn}left:10px;">‹</button><button data-act="lightboxNext" style="${navBtn}right:10px;">›</button>
-        <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:rgba(255,255,255,.7);font-size:12px;font-weight:700;">${lb.index + 1} / ${lb.list.length}</div>` : ''}
+      ${many ? `<button data-act="lightboxPrev" style="${navBtn}left:10px;">‹</button><button data-act="lightboxNext" style="${navBtn}right:10px;">›</button>` : ''}
+      <div style="position:absolute;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:12px;">
+        ${many ? `<div style="color:rgba(255,255,255,.7);font-size:12px;font-weight:700;">${lb.index + 1} / ${lb.list.length}</div>` : ''}
+        <div style="display:flex;gap:10px;">
+          <button data-act="lightboxReplace" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:11px;padding:11px 16px;font-weight:800;font-size:13px;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3l1.6-2h8.8L18 8h3v11H3V8Z"/><circle cx="12" cy="13" r="3.1"/></svg>Remplacer</button>
+          <button data-act="lightboxDelete" style="display:flex;align-items:center;gap:7px;background:#B23B2D;border:none;color:#fff;border-radius:11px;padding:11px 16px;font-weight:800;font-size:13px;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Supprimer</button>
+        </div>
+      </div>
     </div>`;
   }
   function renderOverlay() {
@@ -626,7 +632,22 @@
     noteSave: () => { const ta = document.getElementById('note-input'); if (ta) setNote(state.stopId, ta.value); state.editingNote = false; render(); },
     lightboxClose: () => { state.lightbox = null; renderOverlay(); },
     lightboxPrev: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index - 1 + lb.list.length) % lb.list.length; renderOverlay(); } },
-    lightboxNext: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index + 1) % lb.list.length; renderOverlay(); } }
+    lightboxNext: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index + 1) % lb.list.length; renderOverlay(); } },
+    lightboxReplace: () => {
+      const lb = state.lightbox; if (!lb) return;
+      const el = document.getElementById(lb.list[lb.index].id);
+      state.lightbox = null; renderOverlay();
+      if (el && el.replaceImage) el.replaceImage();
+    },
+    lightboxDelete: () => {
+      const lb = state.lightbox; if (!lb) return;
+      const el = document.getElementById(lb.list[lb.index].id);
+      if (el && el.clearImage) el.clearImage();
+      lb.list.splice(lb.index, 1);
+      if (!lb.list.length) state.lightbox = null;
+      else lb.index = lb.index % lb.list.length;
+      render();
+    }
   };
 
   document.querySelector('.app-phone').addEventListener('click', (e) => {
@@ -643,9 +664,10 @@
   // Ouverture plein écran d'une photo (événement émis par <image-slot lightbox>).
   document.querySelector('.app-phone').addEventListener('imageslot:open', (e) => {
     const slots = Array.from(view.querySelectorAll('image-slot[lightbox]')).filter((s) => s.hasAttribute('data-filled'));
-    const list = slots.map((s) => s.url).filter(Boolean);
+    const list = slots.map((s) => ({ id: s.id, url: s.url })).filter((x) => x.url);
     if (!list.length) return;
-    let index = list.indexOf(e.detail && e.detail.url);
+    const wanted = e.detail && e.detail.url;
+    let index = list.findIndex((x) => x.url === wanted);
     if (index < 0) index = 0;
     state.lightbox = { list, index };
     renderOverlay();

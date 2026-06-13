@@ -185,6 +185,8 @@
     attributeChangedCallback() { if (this.shadowRoot) this._render(); }
 
     get url() { return this._url || ''; }
+    clearImage() { this._clear(); }      // suppression (API publique, ex. depuis le plein écran)
+    replaceImage() { this._input.click(); }
 
     handleEvent(e) {
       if (e.type === 'dragenter' || e.type === 'dragover') {
