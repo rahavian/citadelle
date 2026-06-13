@@ -551,7 +551,7 @@
 
   // ---------- Easter egg : 3 indices → mot de passe → photos chiffrées ----------
   const EGG_CLUES = [
-    'Un pays, tout au sud de l’Amérique.',
+    'Start',
     'On y danse le tango, on y dévore l’asado… et un certain Lionel y est roi.',
     'Drapeau bleu ciel et blanc, un soleil au centre, capitale Buenos Aires.'
   ];
