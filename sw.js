@@ -3,7 +3,7 @@
  * fonctionnement hors-ligne (PRD §12). Les médias déposés par l'utilisateur
  * vivent en localStorage, hors du cache ; les futures photos réseau seront
  * servies réseau-d'abord avec repli au cache. */
-const CACHE = 'citadelle-v7';
+const CACHE = 'citadelle-v8';
 const SHELL = [
   './',
   './index.html',
@@ -63,16 +63,33 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Coquille & même origine : cache-d'abord, repli réseau (puis on met en cache).
+  // Même origine.
   if (url.origin === location.origin) {
+    const p = url.pathname;
+    // Médias (images, coffre chiffré) : cache-d'abord (stables / URL versionnées) → économise la 4G.
+    const isMedia = /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(p) || p.endsWith('/egg.json');
+    if (isMedia) {
+      e.respondWith(
+        caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          }
+          return res;
+        }))
+      );
+      return;
+    }
+    // Code & données (HTML/JS/CSS/JSON) : RÉSEAU-D'ABORD → toujours à jour en ligne,
+    // repli cache hors-ligne (souterrains). Corrige les mises à jour qui ne s'affichaient pas.
     e.respondWith(
-      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+      fetch(req).then((res) => {
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
         }
         return res;
-      }).catch(() => caches.match('./index.html')))
+      }).catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
     );
   }
 });

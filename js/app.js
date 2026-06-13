@@ -552,8 +552,7 @@
   // ---------- Easter egg : 3 indices → mot de passe → photos chiffrées ----------
   const EGG_CLUES = [
     'Start',
-    'On y danse le tango, on y dévore l’asado… et un certain Lionel y est roi.',
-    'Drapeau bleu ciel et blanc, un soleil au centre, capitale Buenos Aires.'
+    'Charade :\nMon premier se trouve dans les musées et les galeries.\nMon deuxième désigne les habitants de la Terre.\nMon dernier se dit le chiffre dix en néerlandais.'
   ];
   let eggData = null;
   async function eggDecrypt(password) {
@@ -594,7 +593,7 @@
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${EGG_CLUES.slice(0, e.revealed).map((c, i) => `<div style="display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid #ece6d6;border-left:3px solid #C6A14A;border-radius:10px;padding:10px 12px;animation:fadeUp .25s ease;">
             <span style="flex:0 0 auto;font-weight:800;color:#C6A14A;font-size:11.5px;">Indice ${i + 1}</span>
-            <span style="color:#3a4138;font-size:13.5px;line-height:1.45;">${esc(c)}</span>
+            <span style="color:#3a4138;font-size:13.5px;line-height:1.5;white-space:pre-line;">${esc(c)}</span>
           </div>`).join('')}
         </div>
         ${e.revealed < EGG_CLUES.length ? `<button data-act="eggHint" style="margin-top:10px;width:100%;background:none;border:1px dashed #C6A14A;color:#a8842f;border-radius:10px;padding:10px;font-weight:700;font-size:12.5px;cursor:pointer;">Besoin d’un autre indice ? (${e.revealed}/${EGG_CLUES.length})</button>` : ''}
