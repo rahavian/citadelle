@@ -123,7 +123,7 @@
 
   const state = {
     screen: 'home', prevScreen: 'home', stopId: stops[0].id, tab: 'apercu',
-    selectedPin: null, more: false, editingNote: false, lightbox: null, visited: loadArr(LS.visited), favs: loadArr(LS.favs)
+    selectedPin: null, more: false, editingNote: false, lightbox: null, egg: null, visited: loadArr(LS.visited), favs: loadArr(LS.favs)
   };
 
   /* ---------- Icônes (réutilisées de la maquette) ---------- */
@@ -511,6 +511,9 @@
           <div style="display:flex;align-items:center;gap:8px;color:#0F3328;">${I.bulbGold}<span style="font-weight:800;font-size:13.5px;">${esc(s.title)}</span></div>
           <div style="font-size:13.5px;color:#3a4138;line-height:1.5;font-weight:500;margin-top:8px;text-wrap:pretty;">${esc(s.anecdotes[0])}</div>
         </button>`).join('')}
+        <div style="text-align:center;padding:24px 8px 6px;">
+          <button data-act="egg" style="background:none;border:none;color:#9aa093;font-size:12.5px;font-weight:600;font-style:italic;letter-spacing:.3px;cursor:pointer;">Joël, Diane, Andy et Jérémy</button>
+        </div>
       </div>
     </div>`;
   }
@@ -546,6 +549,68 @@
     requestAnimationFrame(() => { try { document.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = 0; }); } catch (e) {} });
   }
 
+  // ---------- Easter egg : 3 indices → mot de passe → photos chiffrées ----------
+  const EGG_CLUES = [
+    'Un pays, tout au sud de l’Amérique.',
+    'On y danse le tango, on y dévore l’asado… et un certain Lionel y est roi.',
+    'Drapeau bleu ciel et blanc, un soleil au centre, capitale Buenos Aires.'
+  ];
+  let eggData = null;
+  async function eggDecrypt(password) {
+    if (typeof crypto === 'undefined' || !crypto.subtle) throw new Error('Connexion sécurisée (HTTPS) requise.');
+    if (!eggData) {
+      const r = await fetch('data/egg.json', { cache: 'force-cache' });
+      if (!r.ok) throw new Error('coffre introuvable');
+      eggData = await r.json();
+    }
+    const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password).trim().toLowerCase()), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(eggData.salt), iterations: eggData.iters, hash: 'SHA-256' }, baseKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    const urls = [];
+    for (const it of eggData.items) {
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(it.iv) }, key, b64(it.ct));
+      urls.push(URL.createObjectURL(new Blob([plain], { type: it.type || 'image/jpeg' })));
+    }
+    return urls;
+  }
+  function eggHTML() {
+    const e = state.egg;
+    if (!e) return '';
+    let inner;
+    if (e.photos) {
+      inner = `<div style="text-align:center;margin:2px 0 16px;">
+          <div style="font-family:var(--serif);font-weight:700;font-size:21px;color:#20291F;">Joël, Diane, Andy &amp; Jérémy</div>
+          <div style="color:#C6A14A;font-size:11.5px;font-weight:800;letter-spacing:1.5px;margin-top:3px;">✦ DÉVERROUILLÉ ✦</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          ${e.photos.map((u, i) => `<img data-act="eggZoom" data-i="${i}" src="${esc(u)}" alt="Souvenir ${i + 1}" style="width:100%;border-radius:12px;display:block;cursor:zoom-in;box-shadow:0 8px 20px rgba(0,0,0,.18);" />`).join('')}
+        </div>`;
+    } else {
+      inner = `<div style="text-align:center;margin:2px 0 14px;">
+          <div style="font-size:30px;line-height:1;">🔒</div>
+          <div style="font-family:var(--serif);font-weight:700;font-size:20px;color:#20291F;margin-top:8px;">Veuillez entrer le mot de passe</div>
+          <div style="color:#6F7468;font-size:12px;margin-top:4px;">Trois indices pour le retrouver…</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${EGG_CLUES.slice(0, e.revealed).map((c, i) => `<div style="display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid #ece6d6;border-left:3px solid #C6A14A;border-radius:10px;padding:10px 12px;animation:fadeUp .25s ease;">
+            <span style="flex:0 0 auto;font-weight:800;color:#C6A14A;font-size:11.5px;">Indice ${i + 1}</span>
+            <span style="color:#3a4138;font-size:13.5px;line-height:1.45;">${esc(c)}</span>
+          </div>`).join('')}
+        </div>
+        ${e.revealed < EGG_CLUES.length ? `<button data-act="eggHint" style="margin-top:10px;width:100%;background:none;border:1px dashed #C6A14A;color:#a8842f;border-radius:10px;padding:10px;font-weight:700;font-size:12.5px;cursor:pointer;">Besoin d’un autre indice ? (${e.revealed}/${EGG_CLUES.length})</button>` : ''}
+        <input id="egg-pass" type="text" inputmode="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Le mot de passe…" value="${esc(e.value || '')}" style="width:100%;margin-top:14px;padding:13px;border-radius:11px;border:1.5px solid ${e.error ? '#B23B2D' : '#d8d2c0'};font-family:Mulish;font-size:15px;box-sizing:border-box;background:#fff;" />
+        ${e.error ? '<div style="color:#B23B2D;font-size:12.5px;font-weight:700;margin-top:8px;text-align:center;">Hmm, ce n’est pas ça… réessaie 😉</div>' : ''}
+        <button data-act="eggSubmit"${e.busy ? ' disabled' : ''} style="width:100%;margin-top:14px;background:#0F3328;color:#fff;border:none;border-radius:12px;padding:14px;font-weight:800;font-size:14px;letter-spacing:.5px;cursor:pointer;opacity:${e.busy ? '.7' : '1'};">${e.busy ? 'Vérification…' : 'Déverrouiller'}</button>`;
+    }
+    return `<div style="position:absolute;inset:0;z-index:30;background:rgba(8,18,13,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:18px;animation:fadeIn .2s ease;">
+      <div data-act="eggClose" style="position:absolute;inset:0;"></div>
+      <div data-stop data-scroll style="position:relative;z-index:1;width:100%;max-width:380px;max-height:86%;overflow-y:auto;background:#FBF9F1;border-radius:20px;padding:22px 18px;box-shadow:0 30px 70px rgba(0,0,0,.5);animation:pop .25s ease;">
+        <button data-act="eggClose" aria-label="Fermer" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:#ece6d6;border:none;color:#6F7468;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">✕</button>
+        ${inner}
+      </div>
+    </div>`;
+  }
+
   function lightboxHTML() {
     const lb = state.lightbox;
     if (!lb || !lb.list.length) return '';
@@ -558,15 +623,15 @@
       ${many ? `<button data-act="lightboxPrev" style="${navBtn}left:10px;">‹</button><button data-act="lightboxNext" style="${navBtn}right:10px;">›</button>` : ''}
       <div style="position:absolute;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:12px;">
         ${many ? `<div style="color:rgba(255,255,255,.7);font-size:12px;font-weight:700;">${lb.index + 1} / ${lb.list.length}</div>` : ''}
-        <div style="display:flex;gap:10px;">
+        ${lb.readonly ? '' : `<div style="display:flex;gap:10px;">
           <button data-act="lightboxReplace" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:11px;padding:11px 16px;font-weight:800;font-size:13px;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3l1.6-2h8.8L18 8h3v11H3V8Z"/><circle cx="12" cy="13" r="3.1"/></svg>Remplacer</button>
           <button data-act="lightboxDelete" style="display:flex;align-items:center;gap:7px;background:#B23B2D;border:none;color:#fff;border-radius:11px;padding:11px 16px;font-weight:800;font-size:13px;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Supprimer</button>
-        </div>
+        </div>`}
       </div>
     </div>`;
   }
   function renderOverlay() {
-    overlay.innerHTML = state.lightbox ? lightboxHTML() : state.more ? moreSheetHTML() : '';
+    overlay.innerHTML = state.lightbox ? lightboxHTML() : state.egg ? eggHTML() : state.more ? moreSheetHTML() : '';
   }
   function render() {
     let html = '';
@@ -593,6 +658,7 @@
     state.selectedPin = null;
     state.editingNote = false;
     state.lightbox = null;
+    state.egg = null;
     render();
     scrollTop();
   }
@@ -606,6 +672,7 @@
     state.selectedPin = null;
     state.editingNote = false;
     state.lightbox = null;
+    state.egg = null;
     render();
     scrollTop();
   }
@@ -634,19 +701,48 @@
     lightboxPrev: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index - 1 + lb.list.length) % lb.list.length; renderOverlay(); } },
     lightboxNext: () => { const lb = state.lightbox; if (lb) { lb.index = (lb.index + 1) % lb.list.length; renderOverlay(); } },
     lightboxReplace: () => {
-      const lb = state.lightbox; if (!lb) return;
+      const lb = state.lightbox; if (!lb || lb.readonly) return;
       const el = document.getElementById(lb.list[lb.index].id);
       state.lightbox = null; renderOverlay();
       if (el && el.replaceImage) el.replaceImage();
     },
     lightboxDelete: () => {
-      const lb = state.lightbox; if (!lb) return;
+      const lb = state.lightbox; if (!lb || lb.readonly) return;
       const el = document.getElementById(lb.list[lb.index].id);
       if (el && el.clearImage) el.clearImage();
       lb.list.splice(lb.index, 1);
       if (!lb.list.length) state.lightbox = null;
       else lb.index = lb.index % lb.list.length;
       render();
+    },
+    egg: () => { state.egg = { revealed: 1, error: false, busy: false, value: '', photos: null }; renderOverlay(); },
+    eggClose: () => {
+      if (state.egg && state.egg.photos) state.egg.photos.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) {} });
+      state.egg = null; state.lightbox = null; renderOverlay();
+    },
+    eggHint: () => {
+      if (!state.egg) return;
+      const inp = document.getElementById('egg-pass'); if (inp) state.egg.value = inp.value;
+      state.egg.revealed = Math.min(EGG_CLUES.length, state.egg.revealed + 1);
+      renderOverlay();
+    },
+    eggSubmit: async () => {
+      if (!state.egg) return;
+      const inp = document.getElementById('egg-pass');
+      const pass = inp ? inp.value : '';
+      state.egg.value = pass; state.egg.busy = true; state.egg.error = false; renderOverlay();
+      try {
+        const urls = await eggDecrypt(pass);
+        if (state.egg) { state.egg.photos = urls; state.egg.busy = false; renderOverlay(); }
+      } catch (err) {
+        if (state.egg) { state.egg.busy = false; state.egg.error = true; renderOverlay(); }
+      }
+    },
+    eggZoom: (el) => {
+      if (!state.egg || !state.egg.photos) return;
+      const i = parseInt(el.getAttribute('data-i'), 10) || 0;
+      state.lightbox = { list: state.egg.photos.map((u) => ({ id: null, url: u })), index: i, readonly: true };
+      renderOverlay();
     }
   };
 

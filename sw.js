@@ -3,7 +3,7 @@
  * fonctionnement hors-ligne (PRD §12). Les médias déposés par l'utilisateur
  * vivent en localStorage, hors du cache ; les futures photos réseau seront
  * servies réseau-d'abord avec repli au cache. */
-const CACHE = 'citadelle-v5';
+const CACHE = 'citadelle-v6';
 const SHELL = [
   './',
   './index.html',
