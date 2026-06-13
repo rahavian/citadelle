@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0F3328"/>
+  <rect x="40" y="40" width="432" height="432" rx="84" fill="none" stroke="#C6A14A" stroke-width="6" opacity="0.55"/>
+  <g transform="translate(256 286) scale(13.5) translate(-12 -13)">
+    <path d="M3 21h18v-7l-2 1v-3l-2 1V8l-2 1V5l-3 2.5L9 5v4L7 8v3l-2-1v3l-2-1v9Z" fill="#F4EFE0"/>
+  </g>
+  <text x="256" y="430" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" fill="#F4EFE0" letter-spacing="2">NAMUR</text>
+</svg>

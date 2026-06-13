@@ -1,0 +1,74 @@
+/* Citadel Guide Namur — base & chrome.
+   Le détail visuel (couleurs, espacements) reste en styles inline dans les
+   gabarits JS pour rester fidèle au pixel près à la maquette de Claude Design.
+   Ici : reset, repli de polices hors-ligne, keyframes, navigation, scrollbar. */
+
+:root {
+  --vert: #0F3328;
+  --creme: #ECE7D6;
+  --ivoire: #FBF9F1;
+  --rouge: #B23B2D;
+  --or: #C6A14A;
+  --encre: #20291F;
+  --gris: #6F7468;
+  --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --sans: 'Mulish', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; background: #0c0e0b; font-family: var(--sans); }
+body { color: var(--encre); }
+button { font-family: var(--sans); }
+img { max-width: 100%; }
+
+[data-scroll] { -webkit-overflow-scrolling: touch; }
+[data-scroll]::-webkit-scrollbar { width: 0; height: 0; }
+[data-scroll] { scrollbar-width: none; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes pop { 0% { transform: scale(.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(178,59,45,.45); } 70% { box-shadow: 0 0 0 9px rgba(178,59,45,0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* Cadre téléphone */
+.app-stage {
+  min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(120% 120% at 50% 0%, #1a2018 0%, #0c0e0b 70%);
+}
+.app-phone {
+  position: relative;
+  width: 100%; max-width: 440px;
+  height: 100dvh; max-height: 940px;
+  background: var(--creme);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 40px 90px rgba(0,0,0,.55);
+}
+#view { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
+
+/* Navigation basse */
+.nav {
+  flex: 0 0 auto; background: var(--vert);
+  border-top: 1px solid rgba(255,255,255,.07);
+  padding: 9px 6px calc(9px + env(safe-area-inset-bottom));
+  display: flex; justify-content: space-around; align-items: stretch;
+  box-shadow: 0 -6px 22px rgba(0,0,0,.22);
+}
+.nav button {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex: 1; background: none; border: none; cursor: pointer; padding: 4px 2px;
+  color: rgba(244,239,224,.46); transition: color .2s ease;
+  font-weight: 700; font-size: 10px;
+}
+.nav button.active { color: #F4EFE0; }
+.nav button:focus-visible { outline: 2px solid var(--or); outline-offset: 2px; border-radius: 8px; }
+
+/* Cibles tactiles & focus visibles (accessibilité / PRD §12) */
+.screen button:focus-visible,
+.screen a:focus-visible { outline: 2px solid var(--or); outline-offset: 2px; }
